@@ -1,5 +1,30 @@
-*pycache* 
-*.whl 
-.idea 
-venv/ 
-docs/build/  
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# uv / virtualenvs
+.venv/
+.python-version
+uv.lock
+
+# tools
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

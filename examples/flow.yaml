@@ -1,0 +1,11 @@
+work-flows:
+  - name: checkout
+    tasks:
+      - order.validate
+      - order.charge
+
+main-flows:
+  - name: PlaceOrder
+    flows:
+      - flow: checkout
+      - task: order.notify
