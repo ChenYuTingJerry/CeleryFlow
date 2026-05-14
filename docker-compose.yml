@@ -1,0 +1,18 @@
+# Spin up a local Redis instance for integration tests.
+#
+#   docker compose up -d
+#   uv run pytest -m integration
+#   docker compose down
+#
+# By default the integration tests look at redis://localhost:6379/0. Override
+# with CELERYFLOW_TEST_REDIS_URL if you point Redis at a different host/port.
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
