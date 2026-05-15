@@ -3,39 +3,36 @@
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A small, declarative flow / pipeline orchestration layer on top of
-[Celery](https://docs.celeryq.dev/). Define multi-step workflows in YAML,
-JSON, or a Python dict, attach conditions to individual steps, and let
-CeleryFlow wire them into Celery chains at runtime.
+CeleryFlow lets you describe a multi-step Celery workflow as a config
+file (YAML, JSON, or a plain Python dict) instead of wiring `chain()`,
+`group()`, and `chord()` by hand. Each step can have a condition, so
+you can skip parts of the flow based on the payload at runtime.
 
-CeleryFlow is the open-source distillation of a workflow engine I built
-and ran in production for several years on an e-commerce platform. The
-domain-specific bits have been stripped — what's left is the generic
-flow engine.
+I used a version of this internally for a few years to run order and
+billing pipelines. This is the cleaned-up open-source version with the
+business-specific stuff removed.
 
-## Features
+## What you get
 
-- **Declarative flows.** Compose pipelines from reusable named workflows.
-- **Multi-format config.** YAML, JSON, or in-memory Python dict.
-- **Condition gating.** Skip a step at runtime based on the payload, using
-  a small Mongo-style operator DSL (`$eq`, `$ne`, `$in`, `$gte`, ...).
-- **Lifecycle logging.** Optional structured logging on task start /
-  success / failure / retry, with payload safely JSON-encoded.
-- **Pluggable operators.** Register your own condition operators with
-  `register_operator`.
-- **Pure Celery.** Flows are real Celery tasks — they participate in
-  retries, monitoring, and routing like any other task.
+- Define flows in YAML, JSON, or a Python dict.
+- Reuse named sub-flows inside larger flows.
+- Skip steps with conditions like `{"sn": {"$eq": "1234"}}` —
+  `$eq`, `$ne`, `$in`, `$gte`, etc. You can add your own.
+- Optional structured logging on start / success / failure / retry.
+- The flows are still regular Celery tasks. Retries, routing, and
+  monitoring keep working the way you expect.
 
-## Installation
+## Install
 
 ```bash
 pip install celeryflow              # core
-pip install "celeryflow[yaml]"      # + YAML loader
-pip install "celeryflow[redis]"     # + redis broker dependency
+pip install "celeryflow[yaml]"      # if you want YAML configs
+pip install "celeryflow[redis]"     # if you want Redis as the broker
 ```
 
-Python 3.11+ is required. CeleryFlow uses [uv](https://docs.astral.sh/uv/)
-for dependency management during development.
+Python 3.11 or newer. During development I use
+[uv](https://docs.astral.sh/uv/), but you don't need it to install the
+package.
 
 ## Quickstart
 
@@ -46,7 +43,7 @@ app = CeleryFlow("my_worker")
 app.conf.update(broker_url="redis://localhost:6379/0",
                 result_backend="redis://localhost:6379/0")
 
-# 1. Define a few primitive tasks.
+# 1. Write some tasks.
 @app.task(name="order.validate", base=EventTask)
 def validate(payload):
     assert "sn" in payload
@@ -61,8 +58,15 @@ def charge(payload):
 def notify(payload):
     payload["notified"] = True
     return payload
+```
 
-# 2. Wire them into a flow.
+2. Describe the flow. CeleryFlow accepts the definition in three
+formats — a Python dict, a YAML file, or a JSON file. Pick whichever
+fits your project.
+
+Option A — Python dict, inline:
+
+```python
 FlowBuilder.from_dict(app, {
     "work-flows": [
         {"name": "checkout", "tasks": ["order.validate", "order.charge"]},
@@ -77,14 +81,9 @@ FlowBuilder.from_dict(app, {
         },
     ],
 })
-
-# 3. Run it.
-result = app.execute_flow("PlaceOrder", {"sn": "1234"})
-print(result.get())
-# -> {"sn": "1234", "charged": True, "notified": True}
 ```
 
-### YAML configuration
+Option B — YAML file:
 
 ```yaml
 # flows.yaml
@@ -103,8 +102,40 @@ main-flows:
 
 ```python
 FlowBuilder.from_yaml(app, "flows.yaml")
-# Globs work too:
+# Globs work too — multiple files get merged:
 FlowBuilder.from_yaml(app, "config/flows/*.yaml")
+```
+
+Option C — JSON file:
+
+```json
+{
+  "work-flows": [
+    {"name": "checkout", "tasks": ["order.validate", "order.charge"]}
+  ],
+  "main-flows": [
+    {
+      "name": "PlaceOrder",
+      "flows": [
+        {"flow": "checkout"},
+        {"task": "order.notify"}
+      ]
+    }
+  ]
+}
+```
+
+```python
+FlowBuilder.from_json(app, "flows.json")
+```
+
+All three produce the same `PlaceOrder` task. Then run it:
+
+```python
+# 3. Run it.
+result = app.execute_flow("PlaceOrder", {"sn": "1234"})
+print(result.get())
+# -> {"sn": "1234", "charged": True, "notified": True}
 ```
 
 ### Conditional steps
@@ -116,8 +147,7 @@ FlowBuilder.from_dict(app, {
             "name": "RefundFlow",
             "flows": [
                 {"task": "order.validate"},
-                # Only run charge() when buy_action is NEW_SUBSCRIPTION,
-                # and the amount is >= 100.
+                # Only charge when it's a new subscription worth >= 100.
                 {"task": "order.charge",
                  "condition": {"buy_action": {"$eq": "NEW_SUBSCRIPTION"},
                                "amount":     {"$gte": 100}}},
@@ -127,12 +157,12 @@ FlowBuilder.from_dict(app, {
 })
 ```
 
-When a step's condition fails at runtime, `apply_async` raises
-`celeryflow.exceptions.ConditionFailed`. Wrap it in a `link_error` /
-custom callback if you want the chain to continue silently instead of
-propagating the error.
+When a condition doesn't match, `apply_async` raises
+`celeryflow.exceptions.ConditionFailed`. Catch it in a `link_error` or
+custom callback if you'd rather skip the step quietly instead of
+failing the chain.
 
-### Custom operators
+### Adding your own operator
 
 ```python
 from celeryflow.conditions import register_operator
@@ -142,7 +172,7 @@ register_operator("$startswith",
                                             and actual.startswith(expected))
 ```
 
-### Lifecycle logging
+### Logging
 
 ```python
 import logging
@@ -151,15 +181,15 @@ from celeryflow import EventTask
 EventTask.bind_logger(logging.getLogger("orders"))
 ```
 
-Each task invocation emits `Start` / `End` / `Retry` / `Failed` log
-records with extras: `task_id`, `process_id`, `parent_id`, `task_name`,
-and (when present) `correlation_id` from the payload.
+Each task call will log `Start`, `End`, `Retry`, or `Failed`. The log
+records carry `task_id`, `process_id`, `parent_id`, `task_name`, and a
+`correlation_id` if the payload has one.
 
 ## Development
 
 ```bash
-git clone https://github.com/yu-ting/celeryflow.git
-cd celeryflow
+git clone https://github.com/ChenYuTingJerry/CeleryFlow.git
+cd CeleryFlow
 uv sync --all-extras
 
 # Unit tests (no broker needed):
@@ -181,67 +211,69 @@ celeryflow/
 ├── src/celeryflow/
 │   ├── __init__.py        public API
 │   ├── app.py             CeleryFlow Celery subclass
-│   ├── builder.py         FlowBuilder — parse and register flows
+│   ├── builder.py         FlowBuilder — parses and registers flows
 │   ├── tasks.py           FlowTask / EventTask base classes
-│   ├── conditions.py      operator DSL
+│   ├── conditions.py      condition operators
 │   ├── encoding.py        JSON encoder (Decimal / Enum / datetime)
 │   ├── utils.py           StringConvert / DictConvert
 │   └── exceptions.py
 ├── tests/
 ├── docker-compose.yml     Redis for integration tests
-└── pyproject.toml         uv-managed project metadata
+└── pyproject.toml
 ```
 
-## Coming from plain Celery
+## If you already use Celery
 
-If you already use Celery, CeleryFlow is additive — your existing
-`@app.task` definitions, broker configuration, workers, and monitoring
-all keep working unchanged. CeleryFlow only adds:
+CeleryFlow doesn't change anything you already have. Your `@app.task`
+definitions, broker, workers, and monitoring all keep working. The
+three things CeleryFlow adds are:
 
-* `CeleryFlow(...)` — a `Celery` subclass. Drop-in replacement; accepts
-  the same args plus a `worker_name` (used to strip a redundant
-  ``{worker_name}.tasks.`` prefix from task names).
-* `EventTask` — a `Task` subclass. Use it as `base=EventTask` on tasks
-  that should participate in flows, or just use it everywhere if you
-  want the lifecycle logging.
-* `FlowBuilder.from_*` — registers extra "entry" tasks that splice
-  the flow body into `self.request.chain` at runtime. The tasks you
-  reference inside a flow are your normal Celery tasks.
+- `CeleryFlow(...)` — a `Celery` subclass. Use it instead of `Celery`.
+  Takes a `worker_name` and otherwise behaves the same.
+- `EventTask` — a `Task` subclass. Pass `base=EventTask` to tasks you
+  want in a flow. (You can also use it on every task if you just want
+  the logging.)
+- `FlowBuilder.from_*` — registers an entry task per flow. When that
+  entry task runs, it splices the rest of the flow into the chain.
 
-A minimal migration looks like::
+So a minimal switch looks like:
 
-    # before
-    from celery import Celery
-    app = Celery("my_worker", broker="redis://...")
+```python
+# before
+from celery import Celery
+app = Celery("my_worker", broker="redis://...")
 
-    @app.task
-    def step_a(payload): ...
+@app.task
+def step_a(payload): ...
 
-    @app.task
-    def step_b(payload): ...
+@app.task
+def step_b(payload): ...
+```
 
-    # after
-    from celeryflow import CeleryFlow, EventTask, FlowBuilder
-    app = CeleryFlow("my_worker", broker="redis://...")
+```python
+# after
+from celeryflow import CeleryFlow, EventTask, FlowBuilder
+app = CeleryFlow("my_worker", broker="redis://...")
 
-    @app.task(base=EventTask)
-    def step_a(payload): ...
+@app.task(base=EventTask)
+def step_a(payload): ...
 
-    @app.task(base=EventTask)
-    def step_b(payload): ...
+@app.task(base=EventTask)
+def step_b(payload): ...
 
-    FlowBuilder.from_dict(app, {
-        "main-flows": [
-            {"name": "MyFlow",
-             "flows": [{"task": "step_a"}, {"task": "step_b"}]},
-        ],
-    })
+FlowBuilder.from_dict(app, {
+    "main-flows": [
+        {"name": "MyFlow",
+         "flows": [{"task": "step_a"}, {"task": "step_b"}]},
+    ],
+})
 
-    app.execute_flow("MyFlow", payload)
+app.execute_flow("MyFlow", payload)
+```
 
-You can adopt it incrementally — flows live alongside any direct
-`chain(...) / group(...) / chord(...)` you already build by hand.
+You can adopt it bit by bit. Flows live alongside any `chain()` /
+`group()` / `chord()` you already build by hand.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
