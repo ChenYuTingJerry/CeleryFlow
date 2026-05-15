@@ -1,0 +1,93 @@
+name: Release
+
+# Triggered by pushing a version tag.
+#
+#   v0.1.0a1, v0.1.0b1, v0.1.0rc1 → TestPyPI
+#   v0.1.0, v1.2.3                → PyPI
+#
+# Publishing uses PyPI Trusted Publishers (OIDC) — no API tokens.
+# The matching pending publishers must already exist at
+#   https://pypi.org/manage/account/publishing/      (env: pypi)
+#   https://test.pypi.org/manage/account/publishing/ (env: testpypi)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sanity check — tag matches pyproject version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pyproject_version=$(uv run --no-project python -c \
+            "import tomllib, pathlib; \
+             print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          if [ "$tag" != "$pyproject_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME (= $tag) does not match pyproject version $pyproject_version"
+            exit 1
+          fi
+
+      - name: Build
+        run: uv build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    # Run for pre-releases: tags containing a, b, or rc
+    if: contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc')
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/celeryflow/
+    permissions:
+      id-token: write  # required for OIDC
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    # Run for stable releases: tags that don't contain a, b, or rc
+    if: "!contains(github.ref_name, 'a') && !contains(github.ref_name, 'b') && !contains(github.ref_name, 'rc')"
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/celeryflow/
+    permissions:
+      id-token: write  # required for OIDC
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
