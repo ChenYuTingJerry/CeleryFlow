@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-16
+
+First stable release. No code changes since `0.1.0a1`. Promoted to
+PyPI after verifying the full release pipeline through TestPyPI
+(workflow trigger, OIDC publish, clean-venv install, quickstart run).
+
 ## [0.1.0a1] - 2026-05-15
 
 First pre-release. Published to TestPyPI to dry-run the release
@@ -37,5 +43,6 @@ v0.1.0 stable release.
 - 39 unit tests, 2 integration tests (Redis-backed), GitHub Actions
   CI across Python 3.11 / 3.12 / 3.13.
 
-[Unreleased]: https://github.com/ChenYuTingJerry/CeleryFlow/compare/v0.1.0a1...HEAD
+[Unreleased]: https://github.com/ChenYuTingJerry/CeleryFlow/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ChenYuTingJerry/CeleryFlow/releases/tag/v0.1.0
 [0.1.0a1]: https://github.com/ChenYuTingJerry/CeleryFlow/releases/tag/v0.1.0a1
