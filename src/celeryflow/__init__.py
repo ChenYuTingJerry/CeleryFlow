@@ -1,4 +1,4 @@
-"""CeleryFlow — declarative flow / pipeline orchestration on top of Celery.
+"""CeleryFlow: describe Celery workflows in YAML, JSON, or a Python dict.
 
 Public API:
 
@@ -8,7 +8,9 @@ Public API:
 """
 from __future__ import annotations
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 __all__ = [
     "CeleryFlow",
     "EventTask",
@@ -17,6 +19,15 @@ __all__ = [
     "CeleryFlowError",
     "ConditionFailed",
 ]
+
+try:
+    __version__ = _pkg_version("celeryflow")
+except PackageNotFoundError:
+    # Package is not installed (e.g. running from a source checkout
+    # without `pip install -e .`). Falling back to "0.0.0+unknown"
+    # rather than crashing keeps tooling that introspects __version__
+    # happy in development.
+    __version__ = "0.0.0+unknown"
 
 from celeryflow.app import CeleryFlow
 from celeryflow.builder import FlowBuilder
