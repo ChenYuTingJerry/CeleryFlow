@@ -1,6 +1,6 @@
 [project]
 name = "celeryflow"
-version = "0.1.0a1"
+version = "0.1.0"
 description = "Describe Celery workflows in YAML, JSON, or a Python dict, with optional per-step conditions."
 readme = "README.md"
 license = { text = "MIT" }
