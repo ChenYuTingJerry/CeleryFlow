@@ -1,16 +1,16 @@
 [project]
 name = "celeryflow"
 version = "0.1.0"
-description = "A declarative flow / pipeline orchestration layer on top of Celery."
+description = "Describe Celery workflows in YAML, JSON, or a Python dict, with optional per-step conditions."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 authors = [
-    { name = "Yu Ting", email = "nmjk2000@gmail.com" },
+    { name = "Jerry Chen", email = "nmjk2000@gmail.com" },
 ]
 keywords = ["celery", "workflow", "pipeline", "orchestration", "flow"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Distributed Computing",
+    "Framework :: Celery",
 ]
 dependencies = [
     "celery>=5.3,<6.0",
@@ -29,9 +30,10 @@ yaml = ["pyyaml>=6.0"]
 redis = ["redis>=4.5"]
 
 [project.urls]
-Homepage = "https://github.com/yu-ting/celeryflow"
-Repository = "https://github.com/yu-ting/celeryflow"
-Issues = "https://github.com/yu-ting/celeryflow/issues"
+Homepage = "https://github.com/ChenYuTingJerry/CeleryFlow"
+Repository = "https://github.com/ChenYuTingJerry/CeleryFlow"
+Issues = "https://github.com/ChenYuTingJerry/CeleryFlow/issues"
+Changelog = "https://github.com/ChenYuTingJerry/CeleryFlow/blob/master/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
