@@ -1,7 +1,9 @@
 # CeleryFlow
 
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
+[![PyPI](https://img.shields.io/pypi/v/celeryflow.svg)](https://pypi.org/project/celeryflow/)
+[![Python](https://img.shields.io/pypi/pyversions/celeryflow.svg)](https://pypi.org/project/celeryflow/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/ChenYuTingJerry/CeleryFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/ChenYuTingJerry/CeleryFlow/actions/workflows/ci.yml)
 
 CeleryFlow lets you describe a multi-step Celery workflow as a config
 file (YAML, JSON, or a plain Python dict) instead of wiring `chain()`,
