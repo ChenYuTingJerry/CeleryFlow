@@ -5,24 +5,51 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/ChenYuTingJerry/CeleryFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/ChenYuTingJerry/CeleryFlow/actions/workflows/ci.yml)
 
-CeleryFlow lets you describe a multi-step Celery workflow as a config
-file (YAML, JSON, or a plain Python dict) instead of wiring `chain()`,
-`group()`, and `chord()` by hand. Each step can have a condition, so
-you can skip parts of the flow based on the payload at runtime.
+**For Celery users who outgrew `chain()` and `group()` but don't want
+to move to Temporal or Prefect.**
 
-I used a version of this internally for a few years to run order and
-billing pipelines. This is the cleaned-up open-source version with the
-business-specific stuff removed.
+CeleryFlow lets you describe a multi-step Celery workflow as a YAML
+(or JSON, or Python dict) config, with optional per-step conditions
+based on the payload. The flows you define become regular Celery
+tasks, so your existing broker, workers, monitoring, and retry
+behavior keep working unchanged.
+
+If you're starting from scratch and don't already have Celery in
+production, you probably want one of the dedicated workflow engines
+([Temporal](https://temporal.io/), [Prefect](https://www.prefect.io/),
+[Dagster](https://dagster.io/), [Hatchet](https://hatchet.run/)) over
+this. They each have their own worker model, persistence layer, and UI.
+CeleryFlow exists for the case where you already have Celery, have
+already invested in it, and just want a cleaner way to compose tasks.
+
+I built a version of this internally for an e-commerce platform and
+ran it in production for several years. This is the open-source
+rewrite with the business-specific bits stripped out.
 
 ## What you get
 
 - Define flows in YAML, JSON, or a Python dict.
 - Reuse named sub-flows inside larger flows.
-- Skip steps with conditions like `{"sn": {"$eq": "1234"}}` —
-  `$eq`, `$ne`, `$in`, `$gte`, etc. You can add your own.
+- Skip steps with conditions like `{"sn": {"$eq": "1234"}}` using
+  Mongo-style operators (`$eq`, `$ne`, `$in`, `$gte`, etc.). You can
+  add your own.
 - Optional structured logging on start / success / failure / retry.
-- The flows are still regular Celery tasks. Retries, routing, and
-  monitoring keep working the way you expect.
+- The flows are still regular Celery tasks. Retries, routing, Flower,
+  and any monitoring you already have keep working.
+
+## What you don't get
+
+CeleryFlow is intentionally small. It doesn't add:
+
+- A separate server / orchestrator process (everything runs in your
+  existing Celery workers).
+- A web UI (Flower or your existing Celery dashboard still applies).
+- Durable execution / workflow replay (if your worker dies mid-flow,
+  you're at Celery's mercy, not CeleryFlow's).
+- Cross-language workflows (Python only, like Celery itself).
+
+If you need any of the above, you probably want Temporal or Prefect
+instead.
 
 ## Install
 
