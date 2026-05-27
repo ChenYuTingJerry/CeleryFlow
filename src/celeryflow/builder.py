@@ -178,7 +178,15 @@ class FlowBuilder:
         tasks: list[Any] = []
         for item in items:
             if "task" in item:
-                tasks.append(signature(item["task"]))
+                options: dict[str, Any] = {}
+                if "condition" in item:
+                    options["condition"] = item["condition"]
+                sig = (
+                    signature(item["task"], options=options)
+                    if options
+                    else signature(item["task"])
+                )
+                tasks.append(sig)
             elif "flow" in item:
                 ref = item["flow"]
                 if ref not in self._flow_map:

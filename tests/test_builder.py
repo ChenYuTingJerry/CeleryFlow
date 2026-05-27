@@ -67,6 +67,68 @@ class TestFromDict:
         final = result.get()
         assert final == {"sn": "x", "a_ran": True, "c_ran": True}
 
+    def test_main_flow_inline_task_carries_condition_into_signature_options(
+        self, eager_app, order_tasks
+    ):
+        """Inline task in main-flows with a condition must keep that condition
+        in the signature's options, so the worker's chain dispatch (which
+        rebuilds the signature and calls apply_async) will trigger
+        EventTask's condition gating.
+
+        Regression: prior to this fix, ``_build_main_flow`` ignored the
+        ``condition`` key on inline tasks, so the gated step always ran in
+        production. Eager mode hid this because eager chain execution
+        bypasses ``apply_async`` entirely.
+        """
+        from celery import signature
+
+        from celeryflow.exceptions import ConditionFailed
+
+        FlowBuilder.from_dict(
+            eager_app,
+            {
+                "main-flows": [
+                    {
+                        "name": "Gated",
+                        "flows": [
+                            {"task": "order.task_a"},
+                            {
+                                "task": "order.task_b",
+                                "condition": {"customer_type": {"$eq": "returning"}},
+                            },
+                        ],
+                    },
+                ],
+            },
+        )
+
+        # The entry task holds the task_list the worker will splice into
+        # request.chain. The gated step (task_b) must carry the condition
+        # in its signature options.
+        entry = eager_app.tasks["Gated"]
+        gated_sig = entry.task_list[1]
+        assert gated_sig.task == "order.task_b"
+        assert gated_sig.options.get("condition") == {
+            "customer_type": {"$eq": "returning"}
+        }
+
+        # Simulate what the Celery worker does when it picks the next chain
+        # step out of request.chain: serialize-then-rebuild the signature,
+        # then apply_async. With a satisfied payload it runs normally; with
+        # an unsatisfied one EventTask.apply_async raises ConditionFailed.
+        sig_as_dict = dict(gated_sig)
+        rebuilt = signature(sig_as_dict, app=eager_app)
+        assert rebuilt.options.get("condition") == {
+            "customer_type": {"$eq": "returning"}
+        }
+
+        # Satisfied: returns a result without raising.
+        rebuilt.apply_async(({"sn": "x", "customer_type": "returning"},))
+
+        # Unsatisfied: EventTask.apply_async raises before queueing.
+        with pytest.raises(ConditionFailed):
+            rebuilt.apply_async(({"sn": "x", "customer_type": "new"},))
+
     def test_main_flow_referencing_work_flow(self, eager_app, order_tasks):
         FlowBuilder.from_dict(
             eager_app,
