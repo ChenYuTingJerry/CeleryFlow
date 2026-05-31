@@ -65,7 +65,7 @@ minversion = "8.0"
 addopts = "-v --strict-markers"
 testpaths = ["tests"]
 markers = [
-    "integration: tests that require a running broker (Redis)",
+    "integration: tests that exercise real Celery infrastructure (a broker and/or a running worker); Redis-backed variants skip when Redis is unreachable",
 ]
 
 [tool.ruff]
