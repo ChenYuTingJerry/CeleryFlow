@@ -67,6 +67,29 @@ class TestFromDict:
         final = result.get()
         assert final == {"sn": "x", "a_ran": True, "c_ran": True}
 
+    def test_registered_entry_task_is_bound_to_app(self, eager_app, order_tasks):
+        """Entry task must be bound to the app so a real worker can run it.
+
+        Regression: prior to this fix, ``_register_task`` called
+        ``app.tasks.register`` (a plain dict insert), skipping ``task.bind(app)``.
+        The bound state is what sets up ``request_stack``; without it, the
+        worker's tracer construction crashes at boot with
+        ``AttributeError: 'NoneType' object has no attribute 'push'``.
+        Eager and ``apply``-mode paths don't touch ``request_stack`` so the
+        bug only showed up under a real worker round-trip.
+        """
+        FlowBuilder.from_dict(
+            eager_app,
+            {
+                "main-flows": [
+                    {"name": "Bound", "flows": [{"task": "order.task_a"}]},
+                ],
+            },
+        )
+        entry = eager_app.tasks["Bound"]
+        assert entry._app is eager_app
+        assert entry.request_stack is not None
+
     def test_main_flow_inline_task_carries_condition_into_signature_options(
         self, eager_app, order_tasks
     ):

@@ -81,3 +81,29 @@ def broker_app(redis_url: str) -> CeleryFlow:
         broker_connection_retry_on_startup=True,
     )
     return app
+
+
+@pytest.fixture(params=["memory", "redis"])
+def worker_broker(request) -> tuple[str, str]:
+    """(broker_url, result_backend) for tests that start a real worker.
+
+    Parametrised so the same worker-roundtrip test runs twice:
+
+    * ``memory`` — kombu's in-process transport, always available (no service
+      needed), so this variant runs everywhere including the sandbox and CI.
+    * ``redis`` — a real Redis broker; skipped when nothing is listening, the
+      same gate the ``redis_url`` fixture uses.
+    """
+    if request.param == "memory":
+        return ("memory://", "cache+memory://")
+
+    url = os.environ.get("CELERYFLOW_TEST_REDIS_URL", "redis://localhost:6379/0")
+    try:
+        host_port = url.split("://", 1)[1].split("/", 1)[0]
+        host, port_s = host_port.split(":", 1)
+        port = int(port_s)
+    except (IndexError, ValueError):
+        pytest.skip(f"unparseable redis url {url!r}")
+    if not _redis_reachable(host, port):
+        pytest.skip(f"Redis not reachable at {host}:{port} — start docker-compose to enable")
+    return (url, url)
