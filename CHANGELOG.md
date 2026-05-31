@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-01
+
+### Fixed
+
+- Flow entry tasks are now bound to the app when registered, so a real
+  Celery worker can boot with flows registered. Before this, registering
+  any flow crashed the worker at startup with
+  `AttributeError: 'NoneType' object has no attribute 'push'`. Eager mode
+  and `execute_flow()` were not affected.
+- Per-step conditions on `main-flows` inline tasks are now carried into
+  the task signature options. Before this, a condition set on an inline
+  task inside a main flow was dropped at build time.
+
 ## [0.1.0] - 2026-05-16
 
 First stable release. No code changes since `0.1.0a1`. Promoted to
@@ -43,6 +56,7 @@ v0.1.0 stable release.
 - 39 unit tests, 2 integration tests (Redis-backed), GitHub Actions
   CI across Python 3.11 / 3.12 / 3.13.
 
-[Unreleased]: https://github.com/ChenYuTingJerry/CeleryFlow/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ChenYuTingJerry/CeleryFlow/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ChenYuTingJerry/CeleryFlow/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ChenYuTingJerry/CeleryFlow/releases/tag/v0.1.0
 [0.1.0a1]: https://github.com/ChenYuTingJerry/CeleryFlow/releases/tag/v0.1.0a1
