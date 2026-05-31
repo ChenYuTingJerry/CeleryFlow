@@ -227,9 +227,12 @@ class FlowBuilder:
 
     @staticmethod
     def _register_task(app: Celery, attributes: dict[str, Any], base_task: type[Task]) -> Task:
+        # ``app.register_task`` (not ``app.tasks.register``) calls ``task.bind(app)``,
+        # which sets up the per-task ``request_stack`` the worker tracer expects.
+        # Without it, the registered entry task crashes the worker boot with
+        # ``AttributeError: 'NoneType' object has no attribute 'push'``.
         task = type("FlowEntryTask", (base_task,), attributes)()
-        app.tasks.register(task)
-        return task
+        return app.register_task(task)
 
 
 def _build_entry_task():
