@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `FlowTask.insert_to_chain`. The flow entry task now splices via
+  `Task.replace` (see Fixed), so this method was unused, and it reached into
+  Celery request/canvas internals (`self.request.chain`, `canvas._chain`).
+  Removing it drops that coupling. This is why the next release is a minor
+  bump.
+
 ### Fixed
 
 - Dispatching a flow entry task to a worker on its own now runs the flow
