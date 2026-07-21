@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Dispatching a flow entry task to a worker on its own now runs the flow
+  body. Before this, sending a flow with `.delay()` / `.apply_async()`
+  returned the payload unchanged and none of the steps ran. The entry task
+  spliced the flow by mutating `self.request.chain`, but `EventTask`'s
+  lifecycle-logging `__call__` makes the worker run the entry task through a
+  nested request, so that mutation was dropped before the worker's tracer
+  read it. The flow body now uses Celery's public `Task.replace`, which
+  dispatches the chain itself instead of relying on that mutation.
+  `execute_flow()` (in-process) and flows dispatched as part of a larger
+  chain were not affected.
+
 ## [0.1.1] - 2026-06-01
 
 ### Fixed
