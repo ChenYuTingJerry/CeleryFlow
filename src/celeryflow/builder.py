@@ -241,6 +241,16 @@ def _build_entry_task():
     Captured here as a closure so it has access to the resolved ``task_list``
     via ``self`` (the registered FlowEntryTask sets ``task_list`` as a class
     attribute).
+
+    The body of the flow is spliced in with Celery's public ``Task.replace``:
+    it ends the entry task and continues with the flow chain, inheriting any
+    downstream chain the entry task itself was part of. On a worker ``replace``
+    dispatches the chain itself (it does not rely on the entry task's return
+    value being threaded), which is why it works where hand-mutating
+    ``self.request.chain`` did not: ``EventTask`` defines a custom ``__call__``,
+    so the worker runs the entry task through ``Task.__call__``, which pushes a
+    nested request. Any ``self.request.chain`` mutation lands on that nested
+    request and is popped before the tracer reads the outer one.
     """
 
     def entry_run(self, *args: Any, **kwargs: Any) -> Any:
@@ -253,13 +263,14 @@ def _build_entry_task():
         else:
             payload = None
 
-        chained: list[Any] = []
-        for step in self.task_list:
-            # step is already a celery Signature at this point
-            chained.append(step)
-        if chained:
-            self.insert_to_chain(chain(*chained))
-        return payload
+        # Clone so the shared task_list signatures are never mutated across
+        # invocations. Feed the incoming payload into the first step, mirroring
+        # execute_flow's chain(*steps).apply(args=(payload,)).
+        steps = [step.clone() for step in self.task_list]
+        if not steps:
+            return payload
+        steps[0] = steps[0].clone(args=(payload,))
+        return self.replace(chain(*steps))
 
     return entry_run
 
