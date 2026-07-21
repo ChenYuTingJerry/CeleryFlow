@@ -2,10 +2,10 @@
 
 Two layers:
 
-* :class:`FlowTask` — primitive base class. Owns the logic for splicing extra
-  signatures into ``self.request.chain`` so that an in-flight task can extend
-  the pipeline dynamically (used by the flow entry task to wire the body of
-  the flow at runtime).
+* :class:`FlowTask` — primitive base class for flow tasks. The runtime chain
+  splicing that expands a flow entry task into its pipeline lives in the
+  builder's entry task via Celery's ``Task.replace``; this class carries the
+  shared structured-logging extras helper.
 * :class:`EventTask` — adds optional pre-execution condition checking,
   structured logging hooks (success / failure / retry), and JSON-safe
   serialization of payloads.
@@ -16,12 +16,11 @@ logging is silent.
 """
 from __future__ import annotations
 
-import copy
 import json
 import logging
 from typing import Any
 
-from celery import Task, canvas, chain, group, signature
+from celery import Task
 
 from celeryflow.conditions import check_conditions
 from celeryflow.encoding import CeleryFlowJSONEncoder
@@ -29,40 +28,18 @@ from celeryflow.exceptions import ConditionFailed
 
 
 class FlowTask(Task):
-    """Base task with chain-manipulation helpers.
+    """Base class for flow tasks.
 
-    The flow entry task uses :meth:`insert_to_chain` to inject the body of the
-    flow (a Celery ``chain`` / ``group`` / single signature) after itself in
-    ``self.request.chain``, which is how a single entry task expands into the
-    full pipeline at runtime.
+    Provides the structured-logging extras helper shared with
+    :class:`EventTask`. The runtime chain splicing that expands a flow entry
+    task into its pipeline lives in the builder's entry task, which uses
+    Celery's public ``Task.replace``.
     """
 
     abstract = True
 
     def run(self, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover - placeholder
         return None
-
-    def insert_to_chain(self, task: Any) -> None:
-        """Insert ``task`` (signature/chain/group/Task) into the current request chain."""
-        if self.request.chain is None:
-            self.request.chain = []
-
-        if isinstance(task, group):
-            current_chain = copy.deepcopy(self.request.chain)
-            current_chain.reverse()
-            reorder = [signature(t) for t in current_chain]
-            next_chain = chain(task, *reorder)
-            self.request.chain = [dict(next_chain)]
-        elif isinstance(task, (chain, canvas._chain)):
-            unchain_tasks = task.unchain_tasks()
-            unchain_tasks.reverse()
-            self.request.chain.extend(unchain_tasks)
-        elif isinstance(task, Task):
-            self.request.chain.append(task.s())
-        elif isinstance(task, canvas.Signature):
-            self.request.chain.append(task)
-        else:
-            raise TypeError(f"Cannot insert object of type {type(task)!r} into chain")
 
     def get_base_extra(self, payload: Any = None) -> dict[str, Any]:
         """Build the structured-logging extras for the current task invocation."""
