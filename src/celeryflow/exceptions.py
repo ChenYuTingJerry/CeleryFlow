@@ -7,20 +7,28 @@ class CeleryFlowError(Exception):
 
 
 class ConditionFailed(CeleryFlowError):
-    """Raised (typically intercepted) when a task's pre-execution condition fails.
+    """Raised when a step's condition doesn't match the payload.
 
-    ``apply_async`` on :class:`celeryflow.tasks.EventTask` raises this when the
-    payload does not satisfy the configured ``condition`` mapping. Subclassing
-    :class:`CeleryFlowError` lets callers catch a single base type.
+    :meth:`celeryflow.tasks.EventTask.apply_async` raises this while it
+    dispatches a gated step, before the step is queued, so that step and the
+    steps after it don't run.
+
+    ``args`` holds the constructor arguments ``(field, value, statements)``.
+    Celery rebuilds a stored exception by calling ``cls(*args)``, so keeping
+    them there lets ``result.get()`` raise ``ConditionFailed`` itself instead
+    of falling back to a parent class.
     """
 
     def __init__(self, field: str, value: object, statements: dict[str, object]) -> None:
+        super().__init__(field, value, statements)
         self.field = field
         self.value = value
         self.statements = statements
-        super().__init__(
-            f"Condition check failed on field {field!r}: value={value!r} "
-            f"did not satisfy {statements!r}"
+
+    def __str__(self) -> str:
+        return (
+            f"Condition check failed on field {self.field!r}: value={self.value!r} "
+            f"did not satisfy {self.statements!r}"
         )
 
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A `ConditionFailed` raised on a worker now comes back out of
+  `result.get()` as `ConditionFailed`, with `field`, `value` and
+  `statements` set (#15). Before this, callers got the parent class
+  `CeleryFlowError`, so `except ConditionFailed` never matched. The
+  exception passed only a formatted message to `Exception.__init__`, and
+  Celery rebuilds a stored exception with `cls(*args)`, which failed and
+  fell back to a parent class. `args` now holds the constructor arguments
+  and the message comes from `__str__`. `str(exc)` is unchanged.
+
 ## [0.2.0] - 2026-07-21
 
 ### Removed

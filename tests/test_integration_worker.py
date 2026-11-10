@@ -24,7 +24,7 @@ import pytest
 from celery.contrib.testing.worker import start_worker
 
 from celeryflow import CeleryFlow, EventTask, FlowBuilder
-from celeryflow.exceptions import CeleryFlowError
+from celeryflow.exceptions import ConditionFailed
 
 pytestmark = pytest.mark.integration
 
@@ -115,7 +115,7 @@ def test_entry_task_condition_gates_a_spliced_step(worker_broker: tuple[str, str
     The gate lives in ``EventTask.apply_async``; it only fires when a step is
     dispatched on a worker (eager chains bypass ``apply_async``). If gating did
     not fire, the gated step would run and the flow would succeed. So a raised
-    ``CeleryFlowError`` on the unsatisfied payload proves the gate fired; a clean
+    ``ConditionFailed`` on the unsatisfied payload proves the gate fired; a clean
     result on the satisfied payload proves it lets matching payloads through.
     """
     broker_url, result_backend = worker_broker
@@ -165,6 +165,10 @@ def test_entry_task_condition_gates_a_spliced_step(worker_broker: tuple[str, str
             "gated_ran": True,
         }
 
+        # The caller must get ConditionFailed itself, with its fields, not a
+        # parent class that Celery fell back to when rebuilding it (#15).
         blocked = app.tasks["GatedFlow"].apply_async(args=({"customer_type": "new"},))
-        with pytest.raises(CeleryFlowError):
+        with pytest.raises(ConditionFailed) as exc_info:
             blocked.get(timeout=15)
+        assert exc_info.value.field == "customer_type"
+        assert exc_info.value.value == "new"
